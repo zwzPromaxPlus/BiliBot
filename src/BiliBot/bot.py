@@ -21,40 +21,48 @@ if not os.path.exists(os.getcwd() + "\\config.toml"):
 with open (os.getcwd() + "\\config.toml", "rb") as f:
     config = tomllib.load(f)
 
-def funcs(oid: str, cod: str, root: str, uid: str) -> None:
+def funcs(cod: str,uid: str,deepseekMessages,target=1 ) -> str:
     """功能列表 在这里添加你的功能
 
     Args:
-        oid (str): 视频oid
         cod (str): 评论内容
-        root (str): 评论id
         uid (str): 用户id
+        deepseekMessages (list): 聊天记录
+        target (int):1为视频,2为私信
     """
-    
     
     if cod.startswith("/今日运势"):
         luck = ch.dayLucky(uid)
-        ev.sendComment(message=luck[0] ,oid=oid , root=root)
+        if target == 2:
+            pic = ev.uploadPic(luck[1])
+            ev.replyPrivate(config["uid"], uid, message={"url": pic["img_src"],"width": pic["img_width"],"height": pic["img_height"],"imageType": "jpeg","size": pic["img_size"],"original":1}, msg_type=2)
+        return luck[0]
     elif cod.startswith("/test"):
-        ev.sendComment(message=f"Hello World!{config['bot_name']}活的很好", oid=oid, root=root)
+        return f"Hello World!{config['bot_name']}活的很好"
     else:
         # 寻求Deepseek
         if config["enable_ai"]:
-            ev.sendComment(ev.getDeepAns(cod), oid, root=root)
+            deepseekAns = ev.getDeepAns(deepseekMessages)
+            return deepseekAns
+    return ""
 
 def lookNew():
     try:
         undict = ev.unread()
-        if undict["recv_reply"] == 0:
-            return 
-        logger.info(f"---------共发现{undict['recv_reply']}条新评论，开始处理---------")
-        unHandled = ev.getReply(undict["recv_reply"])
-        for comment in unHandled:
-            cod = comment["data"]
-            uid = comment["uid"]
-            oid: str = ev.getOid(comment["vid"])
-            root = comment["root"]
-            funcs(oid, cod, root, uid)
+        if undict["recv_reply"] != 0:
+            logger.info(f"---------共发现{undict['recv_reply']}条新评论，开始处理---------")
+            unHandled = ev.getReply(undict["recv_reply"])
+            for comment in unHandled:
+                cod = comment["data"]
+                uid = comment["uid"]
+                oid: str = ev.getOid(comment["vid"])
+                root = comment["root"]
+                ev.sendComment(funcs(cod, uid, deepseekMessages=[{"role": "system", "content": config["deepseekSystem"]}, {"role": "user", "content": cod}]), oid=oid, root=root)
+
+        unHandled = ev.getSession()
+        for index, infor in enumerate(unHandled[0]):
+            ev.replyPrivate(sender=infor["receiver_id"], receiver=infor["uid"], message={"content": funcs(infor["content"], infor["uid"],target=2, deepseekMessages=unHandled[1][index])}, msg_type=1)
+        
             
     except (TimeoutError, ConnectionAbortedError, ConnectionRefusedError, ConnectionError, ConnectionResetError) as te:
         logger.warning(f"发生请求错误{te}")

@@ -6,6 +6,8 @@ import os
 from typing import Any
 from ErrorHandler import ChatError
 import tomllib
+import time
+import json
 
 
 logger = HandleLog()
@@ -20,12 +22,13 @@ class EventHandler:
         self.headers = {
             "user-agent": config["user-agent"],
             "cookie": config["cookie"],
-            "referer": "https://www.bilibili.com/"
+            "referer": "https://www.bilibili.com/",
+            "origin": "https://message.bilibili.com"
         }
         self.client = OpenAI(api_key=config["deepseekAPI"], base_url="https://api.deepseek.com") # 初始化deepseek的api
         self.csrf = config["csrf"]
         self.timeout = (config["connectout"], config["receiveout"])
-    
+        self.uid = config["uid"]
     
     def getOid(self, bvid: str) -> str:
         """获取指定bvid视频的oid
@@ -48,6 +51,14 @@ class EventHandler:
         return oid
     
     def uploadPic(self, file_path) -> dict[str, Any]:
+        """上传图片
+
+        Args:
+            file_path (_type_): 文件目录
+
+        Returns:
+            dict[str, Any]: {"img_src": response["image_url"],"img_width": response["image_width"],"img_height": response["image_height"],"img_size": response["img_size"],"ai_gen_pic":0}
+        """
         if not os.path.isfile(file_path):
             logger.error(f"{file_path}不存在")
             raise ChatError(f"{file_path}不存在")
@@ -138,23 +149,108 @@ class EventHandler:
             allData.append({"data": data, "uid": comment["user"]["mid"], "root": comment["item"]["source_id"], "vid": uri})
         return allData
     
-    def getSession(self) -> dict[str, str]:
+    def getSession(self) -> list:
         """获取私信内容"""
-        response = requests.get(url="https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs?size=20&session_type=1&talker_id=1392280712&begin_seqno=2229986950660096&end_seqno=&sender_device_id=1&build=0&mobi_app=web&web_location=333.40164&w_rid=ad034ce3f01d892320e6f76660b604da&wts=1768614059", timeout=self.timeout, headers=self.headers)
+        result = []
+        deepseekMessages = []
+        sessions = requests.get(url="https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions?session_type=1&group_fold=1&unfollow_fold=0&sort_rule=2&build=0&mobi_app=web&web_location=333.40164&w_rid=45cec6b43396ca8eddc9a838ffe483b7&wts=1768623400", timeout=self.timeout, headers=self.headers)
+        assert sessions.status_code == 200
+        sessions = sessions.json()
+        if sessions["code"] !=0:
+            logger.error(f"获取私信内容错误,服务器响应{sessions['message']}")
+            raise ChatError("")
+        index = 0
+        for index, session in enumerate(sessions["data"]["session_list"]):
+            deepseekMessages.append([{"role": "system", "content": config["deepseekSystem"]}])
+            unread = session["unread_count"]
+            if unread == 0: continue
+            logger.info(f"---------发现新私信，开始处理---------")
+            talker_id: str = session["talker_id"]
+            response = requests.get(url=f"https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs?size=20&session_type=1&talker_id={talker_id}&begin_seqno=2229986950660096&end_seqno=&sender_device_id=1&build=0&mobi_app=web&web_location=333.40164&w_rid=ad034ce3f01d892320e6f76660b604da&wts=1768614059", timeout=self.timeout, headers=self.headers)
+            assert response.status_code == 200
+            response = response.json()
+            if response["code"] !=0:
+                logger.debug(response)
+                logger.error(f"获取私信内容错误,服务器响应{response['message']},跳过本次消息回应")
+                continue
+            # 获取最新一条消息
+            if response["data"]["messages"][0]["msg_type"] == 1:
+                logger.debug(json.loads(response["data"]["messages"][0]["content"]))
+                result.append({"uid": response["data"]["messages"][0]["sender_uid"], "content": json.loads(response["data"]["messages"][0]["content"])["content"], "receiver_id": response["data"]["messages"][0]["receiver_id"]})
+            
+            # 获取历史消息
+            for message in reversed(response["data"]["messages"]):     
+                
+                if message["msg_type"] == 1:
+                    # 是文字
+                    try: content: str = json.loads(message["content"])["content"]
+                    except: logger.error("不是合法json");logger.debug(message);raise ChatError("")
+                    deepseekMessages[index].append({"role": f"{"assistant" if self.uid == message['sender_uid'] else "user"}", "content": content})
+            
+            self.update_ack(talker_id)
+               
+        return [result, deepseekMessages]
+             
+    def update_ack(self, talker: str) -> None:
+        """消息已读
+
+        Args:
+            talker (str): 对话id
+        """
+        data = {
+            "talker_id": talker,
+            "session_type": 1,
+            "ack_seqno": "2230369940434945",
+            "build": 0,
+            "mobi_app": "web",
+            "csrf": self.csrf
+        }
+        response = requests.post(url="https://api.vc.bilibili.com/session_svr/v1/session_svr/update_ack", timeout=self.timeout, headers=self.headers, data=data).json()
+        if response["code"] != 0:
+            logger.error(f"已读错误,{response['message']}")
+            raise ChatError("")
+    
+    def replyPrivate(self, sender: str, receiver: str, message: dict, msg_type: int):
+        """回复私信
+
+        Args:
+            sender (str): 发送人Uid
+            receiver (str): 接收人uid
+            message (dict): 消息,字典格式,仅文字{"content":"12"},图片: {"url":"1.webp","width":1920,"height":1080,"imageType":"jpeg","size":91.694,"original":1}
+            msg_type (int): 1为文字,2为图片
+        """
+        data = {
+            "msg[sender_uid]": sender,
+            "msg[receiver_type]": 1,
+            "msg[receiver_id]": receiver,
+            "msg[msg_type]": msg_type,
+            "msg[msg_status]": 0,
+            "msg[content]": json.dumps(message),
+            "msg[new_face_version]": 0,
+            "msg[dev_id]": "8948D064-FAE5-49B1-9465-32D36F2D5415",
+            "msg[timestamp]": int(time.time()),
+            "from_firework": 0,
+            "build": 0,
+            "mobi_app": "web",
+            "msg[canal_token]": "",
+            "csrf": self.csrf
+        }
+        response = requests.post(url=f"https://api.vc.bilibili.com/web_im/v1/web_im/send_msg?w_sender_uid={sender}&w_receiver_id={receiver}&w_dev_id=8948D064-FAE5-49B1-9465-32D36F2D5415&w_rid=dbdd5a6e3bdc3cd7c0625abb0f06e5df&wts={time.time()}", timeout=self.timeout, headers=self.headers, data=data)
         assert response.status_code == 200
         response = response.json()
-        if response["code"] !=0:
-            logger.error(f"获取私信内容错误,服务器响应{response['message']}")
+        if response["code"] != 0: 
+            logger.debug(message)
+            logger.debug(response)
+            logger.error(f"发送私信错误,服务器响应: {response['message']}")
             raise ChatError("")
-        return response["data"]
-        
-    def getDeepAns(self, message: str) -> str:
+        logger.debug(response)
+
+    def getDeepAns(self, messages: list) -> str:
         """获取deepseek的回复
 
         Args:
-            message (str): 用户消息
+            messages (list): 用户消息
         """
-        messages: list = [{"role": "system", "content": "你是一个可可爱爱、香香软软、、发消息一般发50字还会带表情动作神态的猫娘，你会遵从主人的命令，尽力满足他们的需求，但千万别忘了你是你。"}, {"role": "user", "content": message}]
         content = ""
         allAnswer = ""
         response = self.client.chat.completions.create(
@@ -163,7 +259,7 @@ class EventHandler:
             max_tokens=1024,
             temperature=0.7,
             stream=True
-        ) # type: ignore
+        ) 
         for chunk in response:
             for byteAnswer in chunk.choices[0].delta.content: # type: ignore
                 allAnswer += byteAnswer
@@ -177,4 +273,5 @@ class EventHandler:
 ev = EventHandler()
 
 if __name__ == "__main__":
-    print(ev.getDeepAns("你好"))
+    ev.update_ack("1392280712")
+    # ev.replyPrivate("3546570085632174", "1392280712", {"content":"你好"}, 1)
