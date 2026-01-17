@@ -1,0 +1,13 @@
+version = "1.0.0"
+
+enable_ai = true # 是否启用自带的deepseek回复，若不启用，则设为false
+deepseekAPI = ""  # 放入你的deepseek api-key, 若上一选项为false, 则无需填写
+
+cookie = ""    # 放入你的cookie
+checkTime = 3 # 检查新评论的间隔时间s
+csrf = ""  # 放入你的csrf 
+bot_name = "BiliBot"  #你的名称
+
+connectout = 5 # 连接超时时间
+receiveout = 5 # 接受超时时间
+user-agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
