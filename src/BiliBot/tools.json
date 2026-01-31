@@ -1,0 +1,74 @@
+
+{   "私信默认": [
+    {
+    "type": "function",
+    "function": {
+        "name": "note",
+        "description": "Run when there is a message that needs to be noticed by the developer or needs to be remembered(including user reports, too funny message).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "The message content that needs to be noted."
+                }
+            },
+            "required": ["message"]
+        }
+    }
+    },
+    {
+    "type": "function",
+    "function": {
+        "name": "get_user",
+        "description": "Obtain detailed information of the specified user.Including user introduction, nickname and the latest video name of this user.If no parameters are passed in, the default response is the user's own details.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_name": {
+                    "type": "string",
+                    "description": "The name of user."
+                }
+            },
+            "required": ["user_name"]
+        }
+    }
+    }
+    ],
+    "ai更改视频标题": [
+    {
+        "type": "function",
+        "function": {
+            "name": "change_title",
+            "description": "Change the name of the video.Do not use in situations that are not very, very important.This is very dangerous.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The new name of the video."
+                    }
+                },
+                "required": ["title"]
+            }
+        }
+    }
+    ],
+    "合作视频简介": [{
+        "type": "function",
+        "function": {
+            "name": "pass",
+            "description": "Run when the given two sentences are coherent and without any illegal or insulting statements",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Content of compliant sentences."
+                    }
+                },
+                "required": ["text"]
+            }
+        }
+    }]
+}

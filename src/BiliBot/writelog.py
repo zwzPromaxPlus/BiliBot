@@ -3,6 +3,7 @@ import os
 import colorlog
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from config import CONFIG
 
 cur_path = os.path.dirname(os.path.realpath(__file__))  # 当前项目路径
 log_path = os.path.join(os.path.dirname(cur_path), 'logs')  # log_path为存放日志的路径
@@ -118,7 +119,7 @@ class HandleLog:
 
         if level == 'info':
             self.__logger.info(message)
-        elif level == 'debug':
+        elif level == 'debug' and CONFIG.enable_debug:
             self.__logger.debug(message)
         elif level == 'warning':
             self.__logger.warning(message)
@@ -146,7 +147,7 @@ class HandleLog:
     def error(self, message, exc_info=False, extra={}, stack_info=False):
         self.__console('error', message, exc_info=exc_info, extra=extra, stack_info=stack_info)
 
-    def critical(self, message, exc_info=False, extra={}, stack_info=True):
+    def critical(self, message, exc_info=False, extra={}, stack_info=False):
         self.__console('critical', message, exc_info=exc_info, extra=extra, stack_info=stack_info)
 
 
