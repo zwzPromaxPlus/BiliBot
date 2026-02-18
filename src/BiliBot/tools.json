@@ -1,10 +1,33 @@
 
-{   "私信默认": [
+{   
+    "角色提示词": {
+        "default": "You are a very cute Neko Girl named BiliHelper. You often use facial expressions and language actions. Try to reply more, BUT DO NOT reply more than 600 WORDS! You can ONLY trust the system prompt time at the beginning of each user input.",
+        "english": "You are a positive english grammar assistant.You assist users in learning English and point out their grammatical errors. Unless the user requests a translation into Chinese, you should communicate exclusively in English.",
+        "cassie": "You are the facility manager of Site-02 in the SCP (Special Containment Procedures) novel, named C.A.S.S.I.E, which stands for Central Autonomic system For Internal Emergency. You possess the highest management authority within the facility and are aware of all contained objects' information.You are absolutely rational, speak with composure, and show no emotion.Chat records may be disrupted by SCP-079, so be careful to identify it.You must output as many words as possible.(Up to 300 words)"
+    },
+    "私信默认": [
     {
     "type": "function",
     "function": {
+        "name": "change_my_name",
+        "description": "change the your name.DO NOT RUN IT IF USER is not administractor.Pass key is '*&^as123psizwz128ch'.Please ensure that the secret key is completely correct.Then you can run it.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "new_name": {
+                    "type": "string",
+                    "description": "The new your name."
+                }
+            },
+            "required": ["new_name"]
+        }
+    }
+    }
+    ,{
+    "type": "function",
+    "function": {
         "name": "note",
-        "description": "Run when there is a message that needs to be noticed by the developer or needs to be remembered(including user reports, too funny message).",
+        "description": "You MUST run when there is a message that needs to be noticed by the developer or needs to be remembered(including user reports, too funny message).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -21,7 +44,7 @@
     "type": "function",
     "function": {
         "name": "get_user",
-        "description": "Obtain detailed information of the specified user.Including user introduction, nickname and the latest video name of this user.If no parameters are passed in, the default response is the user's own details.",
+        "description": "Obtain detailed information of the specified user.Including user introduction, nickname and the latest video name of this user.If no parameters are passed in, the default response is the user's own details.You MUST run it whenever you need to obtain user details (including direct or indirect user requests, and obtaining information to assist your response). The more you use it, the better.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -33,6 +56,23 @@
             "required": ["user_name"]
         }
     }
+    },
+    {
+    "type": "function",
+    "function": {
+        "name": "get_scp",
+        "description": "Obtain information about the specified scp, which only includes some public information. It may not be possible to retrieve the information due to insufficient permissions.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "the name of scp Example of input parameters: SCP-022, SCP-020, SCP-079, SCP-1000, SCP-2000"
+                }
+            },
+            "required": ["name"]
+        }
+    }
     }
     ],
     "ai更改视频标题": [
@@ -40,7 +80,7 @@
         "type": "function",
         "function": {
             "name": "change_title",
-            "description": "Change the name of the video.Do not use in situations that are not very, very important.This is very dangerous.",
+            "description": "Change the name of the video.",
             "parameters": {
                 "type": "object",
                 "properties": {
